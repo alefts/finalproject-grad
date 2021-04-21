@@ -32,54 +32,6 @@ from scipy.integrate import odeint,simps
 import utils_tcc
 
 
-#Valores das Entradas (com base no artigo do Fuzzy)
-Cva=0.0824 #kmol/m3
-Cbv=1.5324 #kmol/m3
-Ccv=0 #kmol/m3
-q=0.0720 #m3/min
-qc=0.6307  #m3/min
-ro=974.19 #kg/m3
-roc=998 #kg/m3
-Cp=3.7187 #kJ/(kg*K)
-Cpc=4.182#kJ/(kg*K)
-V=2.407 #m3
-Vc=2 #m3
-A=8.695 #m2
-alpha=13.8 #kJ/(min*m2*K)
-Tv=299.05 #K
-Tvc=288.15 #K
-g=10183 #K
-DrH=-5.46e6 #kJ/kmol
-kinf=2.8233e11 #min-1
-
-#Inicialmente....
-Ca=Cva
-T=Tv
-Tc=Tvc
-
-
-
-"""
------------------------------------------------------------------------------------
-
-***Possíveis Cases***
-MV: [Case 1] qc - vazão de fluido refrigerante | [Case 2] Tvc - temperatura do fluido refrigerante |
-    [Case 3] Os dois
-CV: [Case 1.1/2.1/3.1] T - temperatura do reator |  [Case 1.1/2.1/3.1] Ca - Concentração de A
-
-Possível perturbação: q, Tv
-
-
------------------------------------------------------------------------------------
- 
- Etapas:
-    
-1. Geração de dados
-2. Modelo de predição (redes neurais)
-3. Lei de controle
-
-"""
-
 #--------------------------------------------------------------------------------
 
 #Modelo do sistema (Reator CSTR)
@@ -110,12 +62,6 @@ data = np.vstack((qc_,Tv_,Tvc_,q_,Ca_,T_,Tc_)).T
 
 data=pd.DataFrame(data)
 
-data.columns=['qc_','Tv_','Tvc_','q_','Ca_','T_','Tc_']
-
-data=data[['Tvc_','T_']]
-
-#data.to_csv('Dados_gerados_case_geral_v2', sep='\t', encoding='utf-8', header=None, index=False)
-
 #------------------------------------------------------------------------------------
 
 
@@ -132,37 +78,12 @@ lista=['Tvc_','T_']
                
 #Função de reestruturação do DF data para entrada na rede
 data=utils_tcc.sliding_window(data,lista,instantes_passados=2)
-#Salvando os dados
-#data.to_csv('Dados_gerados_case_geral_t_2_v2_.csv', sep='\t', encoding='utf-8', header=None, index=False)
-
-#---------------------------------------
-
-#Leitura dos dados
-#data=pd.read_csv('Dados_gerados_case_geral_t_2_v2.csv', sep='\t', encoding='utf-8',header=None)
-
-#data.columns=['qc_', 'Tv_', 'Tvc_', 'q_', 'Ca_', 'T_', 'Tc_', 'qc_t-1', 'Tv_t-1',
-#       'Tvc_t-1', 'q_t-1', 'Ca_t-1', 'T_t-1', 'Tc_t-1', 'qc_t-2', 'Tv_t-2',
-#       'Tvc_t-2', 'q_t-2', 'Ca_t-2', 'T_t-2', 'Tc_t-2']
-
-
-data.columns=['Tvc_','T_','Tvc_t-1','T_t-1','Tvc_t-2','T_t-2']
-
-
-#data=data.drop(['qc_','Tv_','Tvc_','q_'],axis=1)
 
 data=data.dropna()
 
 data=data.loc[1000:,:]
 #---------------------------------------------------------------------------------------
 
-#data=data[ ['T_', 'qc_t-1', 'Tv_t-1',
-#       'Tvc_t-1', 'q_t-1', 'T_t-1', 'qc_t-2', 'Tv_t-2',
-#       'Tvc_t-2', 'q_t-2', 'T_t-2']]
-
-#Definição de targets
-
-#target_tc=data.pop('Tc_')
-#target_ca=data.pop('Ca_')
 target=data.pop('T_')
 _=data.pop('Tvc_')
 #Padronização dos dados
@@ -210,9 +131,6 @@ model = tf.keras.Sequential([
         keras.layers.Dense(1,activation='relu')
 ])
     
-
-#def last_time_step_mse(Y_true, Y_pred):
-#  return keras.metrics.mean_squared_error(Y_true[:, -1], Y_pred[:, -1])
 
 optimizer = keras.optimizers.Adam(lr=0.01)
 model.compile(loss="mse", optimizer=optimizer, metrics=[tf.keras.metrics.MeanAbsoluteError()])
@@ -269,9 +187,6 @@ def J(u):
     wT=1000
     lambda_q=10
 
-#    start_time = time.time()
-#    Loop para cálculo do horizonte de predição
-    
     #Informação do Tvc para ser utilizado no df 'd_Tvc'
     Tvc_t_2_=Tvc_t_2
     
@@ -299,8 +214,7 @@ def J(u):
             T_t_2_=T_t_1_
             T_t_1_=T_[i]
             
-#    print("--- %s seconds ---" % (time.time() - start_time))
-   
+  
     #Array com os set points no decorrer da predição
     y_ref=[SP]*h_pred
     
@@ -416,296 +330,5 @@ for i in range(final_step):
     print(70*'=')
     
     sp_.append(SP)
-    
-print("--- %s seconds ---" % (time.time() - start_time))
-
-
-
-#-----------------------------------------------------
-"""
-Plotagem dos resultados
-"""
-p_=pd.DataFrame(z_)
-
-
-p_=pd.DataFrame(z_)
-
-SAVE_RESULTS=p_.copy()
-SAVE_RESULTS['sp']=sp_
-SAVE_RESULTS['Tvc']=Tvc_
-
-#SAVE_RESULTS.to_csv('Result_GRU_V1.csv', sep='\t', encoding='utf-8', header=None, index=False)
-#SAVE_RESULTS.to_csv('Result_LSTM_V1.csv', sep='\t', encoding='utf-8', header=None, index=False)
-#SAVE_RESULTS.to_csv('Result_RNN_V1.csv', sep='\t', encoding='utf-8', header=None, index=False)
-#SAVE_RESULTS.to_csv('Result_MLP_V1.csv', sep='\t', encoding='utf-8', header=None, index=False)
-
-
-#Métricas de erro
-IAE=simps(abs(sp_-p_[1]))
-ISE=simps((sp_-p_[1])**2)
-ITAE=simps(np.linspace(0,final_step-1,final_step)*abs(sp_-p_[1]))
-ITSE=simps(np.linspace(0,final_step-1,final_step)*((sp_-p_[1])**2))
-
-
-#Plotagem
-plt.figure(figsize=(12,4))
-plt.subplot(2,1,1)
-plt.title("IAE= "+'%.3f'%IAE+ "   ISE= "+'%.3f'%ISE+"   ITAE= "+'%.3f'%ITAE+"   ITSE= "+'%.3f'%ITSE)
-plt.step(np.linspace(0,final_step-1,final_step),Tvc_,'k',label='Ações controlador')
-plt.ylabel('T_coolant - MV (K)')
-#plt.xlabel('Tempo (s)')
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-plt.legend()
-
-
-#plt.figure(figsize=(12,4))
-plt.subplot(2,1,2)
-plt.plot(p_[1],label='Temp Reator')
-plt.plot(sp_,label='Set Point')
-plt.ylabel('K')
-plt.xlabel('Tempo (s)')
-
-plt.xticks(np.linspace(0,final_step-1,final_step/5))
-plt.legend()
-
-plt.show()
-
-
-
-
-
-#=================================================================================
-
-#Plotagem das versões
-
-"""
-MLP
-"""
-MLP_V1=pd.read_csv('Result_MLP_V1.csv', sep='\t', encoding='utf-8',header=None)
-MLP_V2=pd.read_csv('Result_MLP_V2.csv', sep='\t', encoding='utf-8',header=None)
-MLP_V3=pd.read_csv('Result_MLP_V3.csv', sep='\t', encoding='utf-8',header=None)
-MLP_V4=pd.read_csv('Result_MLP_V4.csv', sep='\t', encoding='utf-8',header=None)
-MLP_V5=pd.read_csv('Result_MLP_V5.csv', sep='\t', encoding='utf-8',header=None)
-MLP_V6=pd.read_csv('Result_MLP_V6.csv', sep='\t', encoding='utf-8',header=None)
-MLP_V7=pd.read_csv('Result_MLP_V7.csv', sep='\t', encoding='utf-8',header=None)
-
-MLP_V1.loc[0,3]=296.727
-
-plt.figure(figsize=(12,4))
-plt.title("Rede Neural - MLP")
-plt.plot(MLP_V1[1],label='wt=100 wtc=10   IAE=78.95    ITAE=2380.761' )
-plt.plot(MLP_V2[1],label='wt=100 wtc=1    IAE=76.544    ITAE=2283.826')
-plt.plot(MLP_V3[1],label='wt=100 wtc=0.1  IAE=76.75    ITAE=2107.683')
-plt.plot(MLP_V4[1],label='wt=100 wtc=0.01 IAE=82.40    ITAE=2272.196')
-plt.plot(MLP_V5[1],label='wt=10  wtc=10   IAE=57.77    ITAE=1482.844')
-plt.plot(MLP_V6[1],label='wt=1   wtc=10   IAE=41.14    ITAE=1095.061')
-plt.plot(MLP_V7[1],label='wt=0.1 wtc=10   IAE=44.002    ITAE=1244.954')
-
-plt.plot(MLP_V1[3],'k--',label='Set Point')
-
-plt.ylabel('Temp. Reator (K)')
-plt.xlabel('Tempo (s)')
-plt.legend(loc='best')
-
-plt.show()
-
-
-
-"""
-RNN
-"""
-RNN_V1=pd.read_csv('Result_RNN_V1.csv', sep='\t', encoding='utf-8',header=None)
-RNN_V2=pd.read_csv('Result_RNN_V2.csv', sep='\t', encoding='utf-8',header=None)
-RNN_V3=pd.read_csv('Result_RNN_V3.csv', sep='\t', encoding='utf-8',header=None)
-RNN_V4=pd.read_csv('Result_RNN_V4.csv', sep='\t', encoding='utf-8',header=None)
-RNN_V5=pd.read_csv('Result_RNN_V5.csv', sep='\t', encoding='utf-8',header=None)
-RNN_V6=pd.read_csv('Result_RNN_V6.csv', sep='\t', encoding='utf-8',header=None)
-RNN_V7=pd.read_csv('Result_RNN_V7.csv', sep='\t', encoding='utf-8',header=None)
-
-RNN_V1.loc[0,3]=296.727
-
-plt.figure(figsize=(12,4))
-plt.title("Rede Neural - RNN")
-plt.plot(RNN_V1[1],label='wt=100 wtc=10   IAE= 42.92    ITAE=1250.885' )
-plt.plot(RNN_V2[1],label='wt=100 wtc=1    IAE=20.45    ITAE=388.698')
-plt.plot(RNN_V3[1],label='wt=100 wtc=0.1  IAE=18.39    ITAE=438.112')
-plt.plot(RNN_V4[1],label='wt=100 wtc=0.01 IAE=19.23    ITAE=467.926')
-plt.plot(RNN_V5[1],label='wt=10  wtc=10   IAE=46.35    ITAE=1332.922')
-plt.plot(RNN_V6[1],label='wt=1   wtc=10   IAE=41.55    ITAE=1026.094')
-plt.plot(RNN_V7[1],label='wt=0.1 wtc=10   IAE=35.58    ITAE=890.772')
-
-plt.plot(RNN_V1[3],'k--',label='Set Point')
-
-plt.ylabel('Temp. Reator (K)')
-plt.xlabel('Tempo (s)')
-plt.legend()
-
-plt.show()
-
-
-
-"""
-LSTM
-"""
-LSTM_V1=pd.read_csv('Result_LSTM_V1.csv', sep='\t', encoding='utf-8',header=None)
-LSTM_V2=pd.read_csv('Result_LSTM_V2.csv', sep='\t', encoding='utf-8',header=None)
-LSTM_V3=pd.read_csv('Result_LSTM_V3.csv', sep='\t', encoding='utf-8',header=None)
-LSTM_V4=pd.read_csv('Result_LSTM_V4.csv', sep='\t', encoding='utf-8',header=None)
-LSTM_V5=pd.read_csv('Result_LSTM_V5.csv', sep='\t', encoding='utf-8',header=None)
-LSTM_V6=pd.read_csv('Result_LSTM_V6.csv', sep='\t', encoding='utf-8',header=None)
-LSTM_V7=pd.read_csv('Result_LSTM_V7.csv', sep='\t', encoding='utf-8',header=None)
-
-LSTM_V1.loc[0,3]=296.727
-
-plt.figure(figsize=(12,4))
-plt.title("Rede Neural - LSTM")
-plt.plot(LSTM_V1[1],label='wt=100 wtc=10   IAE=19.50    ITAE=438.779' )
-plt.plot(LSTM_V2[1],label='wt=100 wtc=1    IAE=15.41    ITAE=318.853')
-plt.plot(LSTM_V3[1],label='wt=100 wtc=0.1  IAE=15.40    ITAE=316.125')
-plt.plot(LSTM_V4[1],label='wt=100 wtc=0.01 IAE=14.75    ITAE=306.174')
-plt.plot(LSTM_V5[1],label='wt=10  wtc=10   IAE=37.49    ITAE=882.845')
-plt.plot(LSTM_V6[1],label='wt=1   wtc=10   IAE=41.77    ITAE=1085.380')
-plt.plot(LSTM_V7[1],label='wt=0.1 wtc=10   IAE=31.44    ITAE=550.823')
-
-plt.plot(LSTM_V1[3],'k--',label='Set Point')
-
-plt.ylabel('Temp. Reator (K)')
-plt.xlabel('Tempo (s)')
-plt.legend()
-
-plt.show()
-
-
-
-"""
-GRU
-"""
-GRU_V1=pd.read_csv('Result_GRU_V1.csv', sep='\t', encoding='utf-8',header=None)
-GRU_V2=pd.read_csv('Result_GRU_V2.csv', sep='\t', encoding='utf-8',header=None)
-GRU_V3=pd.read_csv('Result_GRU_V3.csv', sep='\t', encoding='utf-8',header=None)
-GRU_V4=pd.read_csv('Result_GRU_V4.csv', sep='\t', encoding='utf-8',header=None)
-GRU_V5=pd.read_csv('Result_GRU_V5.csv', sep='\t', encoding='utf-8',header=None)
-GRU_V6=pd.read_csv('Result_GRU_V6.csv', sep='\t', encoding='utf-8',header=None)
-GRU_V7=pd.read_csv('Result_GRU_V7.csv', sep='\t', encoding='utf-8',header=None)
-
-GRU_V1.loc[0,3]=296.727
-
-plt.figure(figsize=(12,4))
-plt.title("Rede Neural - GRU")
-plt.plot(GRU_V1[1],label='wt=100 wtc=10   IAE=19.39    ITAE=437.120' )
-plt.plot(GRU_V2[1],label='wt=100 wtc=1    IAE=18.50    ITAE=416.020')
-plt.plot(GRU_V3[1],label='wt=100 wtc=0.1  IAE=15.21    ITAE=319.421')
-plt.plot(GRU_V4[1],label='wt=100 wtc=0.01 IAE=12.95    ITAE=226.503')
-plt.plot(GRU_V5[1],label='wt=10  wtc=10   IAE=25.83    ITAE=442.669')
-plt.plot(GRU_V6[1],label='wt=1   wtc=10   IAE=38.22    ITAE=999.813')
-plt.plot(GRU_V7[1],label='wt=0.1 wtc=10   IAE=40.74    ITAE=1131.692')
-
-plt.plot(GRU_V1[3],'k--',label='Set Point')
-
-plt.ylabel('Temp. Reator (K)')
-plt.xlabel('Tempo (s)')
-plt.legend()
-
-plt.show()
-
-
-
-"""
-Melhores performances em relação às estruturas
-"""
-
-plt.figure(figsize=(12,4))
-plt.title("Comparação Estruturas - Melhores pesos")
-plt.plot(MLP_V6[1],label='MLP    wt=1   wtc=10   IAE=41.14    ITAE=1095.061')
-plt.plot(RNN_V3[1],label='RNN    wt=100 wtc=0.1  IAE=18.39    ITAE=438.112')
-plt.plot(LSTM_V4[1],label='LSTM  wt=100 wtc=0.01 IAE=14.75    ITAE=306.2')
-plt.plot(GRU_V4[1],label='GRU    wt=100 wtc=0.01 IAE=12.95    ITAE=226.5')
-
-
-plt.plot(GRU_V1[3],'k--',label='Set Point')
-plt.ylabel('Temp. Reator (K)')
-plt.xlabel('Tempo (s)')
-plt.legend()
-
-plt.show()
-
-
-
-"""
-Resumo das performances
-"""
-import seaborn as sns
-
-Result=pd.read_csv('Plotagem_result.csv', sep=',', encoding='utf-8',header=0)
-
-Result_wt=Result[Result['wt']==100]
-
-Result_wtc=Result[Result['wtc']==10]
-#Result_wtc=Result_wtc[Result['wt']<100]
-
-
-"""
-Case 1:
-wt=100
-"""
-plt.figure(figsize=(9,8))
-plt.subplot(4,1,1)
-plt.title('Para wt=100')
-ax = sns.barplot(x="wtc", y="IAE", hue="Estrutura",
-                 data=Result_wt, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-
-plt.subplot(4,1,2)
-ax = sns.barplot(x="wtc", y="ISE", hue="Estrutura",
-                 data=Result_wt, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-plt.legend([],[], frameon=False)
-
-plt.subplot(4,1,3)
-ax = sns.barplot(x="wtc", y="ITAE", hue="Estrutura",
-                 data=Result_wt, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-plt.legend([],[], frameon=False)
-
-plt.subplot(4,1,4)
-ax = sns.barplot(x="wtc", y="ITSE", hue="Estrutura",
-                 data=Result_wt, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.legend([],[], frameon=False)
-plt.show()
-
-
-
-
-
-
-
-"""
-Case 2:
-wtc=10
-"""
-plt.figure(figsize=(9,8))
-plt.subplot(4,1,1)
-plt.title('Para wtc=10')
-ax = sns.barplot(x="wt", y="IAE", hue="Estrutura",
-                 data=Result_wtc, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-
-plt.subplot(4,1,2)
-ax = sns.barplot(x="wt", y="ISE", hue="Estrutura",
-                 data=Result_wtc, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-plt.legend([],[], frameon=False)
-
-plt.subplot(4,1,3)
-ax = sns.barplot(x="wt", y="ITAE", hue="Estrutura",
-                 data=Result_wtc, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.tick_params(axis='x',which='both',bottom=False,top=False,labelbottom=False)
-plt.legend([],[], frameon=False)
-
-plt.subplot(4,1,4)
-ax = sns.barplot(x="wt", y="ITSE", hue="Estrutura",
-                 data=Result_wtc, dodge=True,palette=sns.mpl_palette("GnBu_d"))
-plt.legend([],[], frameon=False)
-plt.show()
 
 
